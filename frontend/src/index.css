@@ -1,0 +1,169 @@
+@layer reset, astryx-base, app;
+
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+
+@layer app {
+  :root {
+    --cs-bg: #f6f7f9;
+    --cs-surface: #ffffff;
+    --cs-border: #e5e7eb;
+    --cs-text: #111827;
+    --cs-muted: #6b7280;
+    --cs-primary: #2563eb;
+    --cs-primary-soft: #eff6ff;
+    --cs-success: #059669;
+    --cs-warning: #d97706;
+    --cs-danger: #dc2626;
+  }
+
+  body {
+    margin: 0;
+    background: var(--cs-bg);
+    color: var(--cs-text);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+
+  .cs-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .cs-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--cs-surface);
+    border-bottom: 1px solid var(--cs-border);
+  }
+
+  .cs-workspace {
+    display: grid;
+    grid-template-columns: 300px 1fr 360px;
+    gap: 14px;
+    padding: 14px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .cs-panel {
+    background: var(--cs-surface);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .cs-panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--cs-border);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .cs-panel-body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .cs-msg-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cs-bubble {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    font-size: 14px;
+  }
+
+  .cs-bubble-user {
+    align-self: flex-end;
+    background: var(--cs-primary);
+    color: #ffffff;
+  }
+
+  .cs-bubble-assistant {
+    align-self: flex-start;
+    background: #f3f4f6;
+    color: var(--cs-text);
+  }
+
+  .cs-tool-card {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    font-size: 12px;
+    color: #334155;
+  }
+
+  .cs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .cs-table th,
+  .cs-table td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--cs-border);
+    vertical-align: top;
+  }
+
+  .cs-table th {
+    color: var(--cs-muted);
+    font-weight: 600;
+    background: #f9fafb;
+  }
+
+  .cs-composer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--cs-border);
+    background: var(--cs-surface);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cs-textarea {
+    width: 100%;
+    min-height: 68px;
+    resize: none;
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .cs-select {
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #ffffff;
+  }
+
+  @media (max-width: 1180px) {
+    .cs-workspace {
+      grid-template-columns: 1fr;
+      overflow-y: auto;
+    }
+  }
+}
