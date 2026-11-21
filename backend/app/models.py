@@ -1,4 +1,4 @@
-"""Pydantic 数据模型定义。"""
+"""Pydantic 数据模型定义（含 Onto 风格反馈、Badcase、归因与多模态接口）。"""
 
 from __future__ import annotations
 
@@ -22,6 +22,15 @@ class ToolCallTrace(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
 
 
+class DecisionTrace(BaseModel):
+    service_node_id: str
+    decision_rule_id: str
+    allowed_actions: list[str] = Field(default_factory=list)
+    blocked_actions: list[str] = Field(default_factory=list)
+    guardrail_passed: bool = True
+    violations: list[str] = Field(default_factory=list)
+
+
 class ChatResponse(BaseModel):
     session_id: str
     stage: StageType
@@ -31,6 +40,7 @@ class ChatResponse(BaseModel):
     tool_calls: list[ToolCallTrace] = Field(default_factory=list)
     checklist: list[str] = Field(default_factory=list)
     suggested_scripts: list[dict[str, str]] = Field(default_factory=list)
+    decision_trace: DecisionTrace | None = None
 
 
 class ModelConfigUpdate(BaseModel):
@@ -62,3 +72,31 @@ class InvoiceCreate(BaseModel):
     amount: float
     email: str = ""
     notes: str = ""
+
+
+class FeedbackCreate(BaseModel):
+    session_id: str
+    message_id: str
+    rating: Literal["up", "down"]
+    tag: str = ""
+    user_query: str = ""
+    assistant_reply: str = ""
+    stage: StageType = "presales"
+    intent: str = ""
+    decision_trace: dict[str, Any] = Field(default_factory=dict)
+    comment: str = ""
+
+
+class BadcaseUpdate(BaseModel):
+    status: Literal["pending", "reviewed", "resolved"]
+    fix_proposal: str = ""
+
+
+class AttributionAskRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+
+
+class MultimodalAnalyzeRequest(BaseModel):
+    filename: str = Field(..., min_length=1)
+    caption: str = ""
+    media_type: Literal["image", "video"] = "image"

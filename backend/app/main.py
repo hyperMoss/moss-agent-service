@@ -1,4 +1,4 @@
-"""FastAPI 主入口：提供 AgentScope 2.0 客服流式对话、SOP 知识库、台账管理与模型热配置接口。"""
+"""FastAPI 主入口：AgentScope 2.0 客服流式对话 + Onto 双本体/归因/多模态/Badcase/评测接口。"""
 
 from __future__ import annotations
 
@@ -10,21 +10,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from app.agents.service_agent import AGENTSCOPE_AVAILABLE, orchestrator
+from app.analytics.attribution_engine import (
+    answer_attribution_question,
+    build_attribution_dashboard,
+)
 from app.config import runtime_config
+from app.eval.benchmark_runner import PUBLIC_DATASET_CATALOG, run_benchmark_suite
 from app.models import (
     AfterSalesTicketCreate,
+    AttributionAskRequest,
+    BadcaseUpdate,
     ChatRequest,
     ChatResponse,
+    FeedbackCreate,
     InvoiceCreate,
     ModelConfigUpdate,
+    MultimodalAnalyzeRequest,
 )
 from app.sop.knowledge import HIGH_FREQ_SCRIPTS, SOP_TREE
 from app.store import store
+from app.tools.multimodal import analyze_media_evidence
 
 app = FastAPI(
-    title="AgentScope 2.0 智能客服系统",
-    version="1.0.0",
-    description="基于 AgentScope 2.0 + FastAPI 的电商地垫全链路（售前/售中/售后）客服系统后端",
+    title="AgentScope 2.0 × Onto 智能客服与经营归因系统",
+    version="2.0.0",
+    description="基于 AgentScope 2.0 + FastAPI，融合 Onto 双本体护栏、只读经营归因、Badcase 自进化与评测集回归",
 )
 
 app.add_middleware(
@@ -84,6 +94,7 @@ async def chat_once(req: ChatRequest) -> ChatResponse:
         tool_calls=final_data.get("tool_calls", []),
         checklist=meta.get("checklist", []),
         suggested_scripts=meta.get("suggested_scripts", []),
+        decision_trace=final_data.get("decision_trace"),
     )
 
 
@@ -100,6 +111,54 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
             yield f"event: {evt['event']}\ndata: {payload}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.post("/api/multimodal/analyze")
+def multimodal_analyze(req: MultimodalAnalyzeRequest) -> dict[str, Any]:
+    return analyze_media_evidence(
+        filename=req.filename,
+        caption=req.caption,
+        media_type=req.media_type,
+    )
+
+
+@app.post("/api/feedback")
+def submit_feedback(req: FeedbackCreate) -> dict[str, Any]:
+    saved = store.add_feedback(req.model_dump())
+    return {"ok": True, "record": saved}
+
+
+@app.get("/api/badcases")
+def list_badcases(all_records: bool = False) -> dict[str, Any]:
+    return {"badcases": store.list_badcases(only_down=not all_records)}
+
+
+@app.put("/api/badcases/{badcase_id}")
+def update_badcase(badcase_id: int, req: BadcaseUpdate) -> dict[str, Any]:
+    ok = store.update_badcase(badcase_id, req.status, req.fix_proposal)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Badcase 记录不存在")
+    return {"ok": True}
+
+
+@app.get("/api/analytics/dashboard")
+def analytics_dashboard() -> dict[str, Any]:
+    return build_attribution_dashboard(store)
+
+
+@app.post("/api/analytics/ask")
+def analytics_ask(req: AttributionAskRequest) -> dict[str, Any]:
+    return answer_attribution_question(req.question, store)
+
+
+@app.get("/api/benchmark/catalog")
+def benchmark_catalog() -> dict[str, Any]:
+    return {"catalog": PUBLIC_DATASET_CATALOG}
+
+
+@app.post("/api/benchmark/run")
+async def benchmark_run() -> dict[str, Any]:
+    return await run_benchmark_suite(store)
 
 
 @app.get("/api/tickets")
@@ -139,7 +198,7 @@ def get_config() -> dict[str, Any]:
         "dashscope_key_configured": bool(runtime_config.dashscope_api_key),
         "openai_base_url": runtime_config.openai_base_url,
         "openai_model": runtime_config.openai_model,
-        "openai_key_configured": bool(runtime_config.openai_api_key),
+        "openai_key_configured": bool(runtime_config.openai_key_configured if hasattr(runtime_config, "openai_key_configured") else runtime_config.openai_api_key),
         "presales_page_min_discount": runtime_config.presales_page_min_discount,
         "aftersales_quality_min_discount": runtime_config.aftersales_quality_min_discount,
         "aftersales_personal_min_discount": runtime_config.aftersales_personal_min_discount,

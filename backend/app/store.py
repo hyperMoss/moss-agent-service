@@ -1,4 +1,4 @@
-"""SQLite 轻量持久化存储：订单、售后登记表、线下发票登记表、工作群通知记录与对话日志。"""
+"""SQLite 轻量持久化存储：订单、售后登记表、发票表、工作群通知、对话日志与 Badcase 自进化队列。"""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ SEED_ORDERS = [
     {
         "order_id": "DD20261119001",
         "buyer_name": "林女士",
-        "order_type": "page_size",  # page_size | custom
+        "order_type": "page_size",
         "has_code": 0,
         "product_name": "商用加密丝圈入户地垫 120x180cm 深灰",
         "amount": 188.0,
-        "status": "unshipped",  # unshipped | shipped | delivered
-        "production_owner": "warehouse",  # factory | warehouse
+        "status": "unshipped",
+        "production_owner": "warehouse",
         "courier": "中通快递",
         "tracking_no": "",
         "logistics_stalled_hours": 0,
@@ -53,7 +53,7 @@ SEED_ORDERS = [
         "production_owner": "warehouse",
         "courier": "圆通速递",
         "tracking_no": "YT889912345678",
-        "logistics_stalled_hours": 56,  # 超过48小时，触发售后交接
+        "logistics_stalled_hours": 56,
         "shipping_address": "浙江省杭州市西湖区文三路259号",
         "custom_notes": "",
     },
@@ -148,6 +148,23 @@ class CSStore:
                     stage TEXT NOT NULL DEFAULT 'presales',
                     intent TEXT NOT NULL DEFAULT '',
                     tool_calls_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS badcase_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    rating TEXT NOT NULL,
+                    tag TEXT NOT NULL DEFAULT '',
+                    user_query TEXT NOT NULL DEFAULT '',
+                    assistant_reply TEXT NOT NULL DEFAULT '',
+                    stage TEXT NOT NULL DEFAULT 'presales',
+                    intent TEXT NOT NULL DEFAULT '',
+                    decision_trace_json TEXT NOT NULL DEFAULT '{}',
+                    comment TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    fix_proposal TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL
                 );
                 """
@@ -319,6 +336,53 @@ class CSStore:
                 item["tool_calls"] = json.loads(item.pop("tool_calls_json", "[]"))
                 result.append(item)
             return result
+
+    def add_feedback(self, record: dict[str, Any]) -> dict[str, Any]:
+        created_at = self._now()
+        status = "pending" if record["rating"] == "down" else "resolved"
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO badcase_queue (
+                    session_id, message_id, rating, tag, user_query, assistant_reply,
+                    stage, intent, decision_trace_json, comment, status, fix_proposal, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
+                """,
+                (
+                    record["session_id"],
+                    record["message_id"],
+                    record["rating"],
+                    record.get("tag", ""),
+                    record.get("user_query", ""),
+                    record.get("assistant_reply", ""),
+                    record.get("stage", "presales"),
+                    record.get("intent", ""),
+                    json.dumps(record.get("decision_trace", {}), ensure_ascii=False),
+                    record.get("comment", ""),
+                    status,
+                    created_at,
+                ),
+            )
+            return {"id": cur.lastrowid, **record, "status": status, "created_at": created_at}
+
+    def list_badcases(self, only_down: bool = True) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            sql = "SELECT * FROM badcase_queue WHERE rating = 'down' ORDER BY id DESC" if only_down else "SELECT * FROM badcase_queue ORDER BY id DESC"
+            rows = conn.execute(sql).fetchall()
+            out = []
+            for r in rows:
+                item = dict(r)
+                item["decision_trace"] = json.loads(item.pop("decision_trace_json", "{}"))
+                out.append(item)
+            return out
+
+    def update_badcase(self, badcase_id: int, status: str, fix_proposal: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE badcase_queue SET status = ?, fix_proposal = ? WHERE id = ?",
+                (status, fix_proposal, badcase_id),
+            )
+            return cur.rowcount > 0
 
 
 store = CSStore()

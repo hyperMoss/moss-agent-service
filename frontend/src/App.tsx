@@ -1,8 +1,12 @@
 import {useCallback, useEffect, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
-import {HStack} from '@astryxdesign/core/HStack';
+import {VStack} from '@astryxdesign/core/VStack';
 import {api, streamChat} from './api/client';
+import {AttributionView} from './components/AttributionView';
+import {BadcaseView} from './components/BadcaseView';
+import {BenchmarkView} from './components/BenchmarkView';
 import {ChatWorkbench} from './components/ChatWorkbench';
+import {CustomerPortal} from './components/CustomerPortal';
 import {ModelSettingsModal} from './components/ModelSettingsModal';
 import {RecordsPanel} from './components/RecordsPanel';
 import {SopNavigator} from './components/SopNavigator';
@@ -18,7 +22,42 @@ import type {
   WorkGroupNotification,
 } from './types';
 
+type AdminTab = 'chat' | 'attribution' | 'badcases' | 'benchmark';
+
+function parseRoute(pathname: string): {mode: 'customer' | 'admin'; tab: AdminTab} {
+  if (pathname.startsWith('/admin')) {
+    if (pathname.startsWith('/admin/attribution')) return {mode: 'admin', tab: 'attribution'};
+    if (pathname.startsWith('/admin/badcases')) return {mode: 'admin', tab: 'badcases'};
+    if (pathname.startsWith('/admin/benchmark')) return {mode: 'admin', tab: 'benchmark'};
+    return {mode: 'admin', tab: 'chat'};
+  }
+  return {mode: 'customer', tab: 'chat'};
+}
+
+const ADMIN_NAV_ITEMS: Array<{tab: AdminTab; path: string; title: string; desc: string}> = [
+  {tab: 'chat', path: '/admin/chat', title: '智能坐席', desc: 'SOP 引导 · 工具轨迹 · 台账'},
+  {tab: 'attribution', path: '/admin/attribution', title: '经营归因与决策', desc: '双页签看板 · 原文下钻抽屉'},
+  {tab: 'badcases', path: '/admin/badcases', title: 'Badcase 自进化', desc: '点踩捕获 · 复核修复闭环'},
+  {tab: 'benchmark', path: '/admin/benchmark', title: '评测与数据集', desc: '20条SOP回归 · 公开数据集'},
+];
+
 export default function App() {
+  const [pathname, setPathname] = useState<string>(() => window.location.pathname || '/');
+  const route = parseRoute(pathname);
+
+  const navigate = useCallback((nextPath: string) => {
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+    }
+    setPathname(nextPath);
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname || '/');
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   const [sessionId] = useState(() => `cs-${Date.now()}`);
   const [sop, setSop] = useState<SopTree | null>(null);
   const [scripts, setScripts] = useState<ScriptItem[]>([]);
@@ -41,7 +80,7 @@ export default function App() {
       role: 'assistant',
       stage: 'presales',
       content:
-        '您好！欢迎使用基于 AgentScope 2.0 + React Astryx 构建的地垫智能客服工作台。\n左侧可一键模拟售前/售中/售后典型场景，右侧实时同步售后登记表、发票登记表与工厂/仓库/快递工作群通知。',
+        '欢迎进入 AgentScope 2.0 × Onto 商家客服管理后台。\n右侧竖向导航栏可随时切换「智能坐席」「经营归因与决策」「Badcase 自进化」与「评测与数据集」。',
     },
   ]);
 
@@ -59,6 +98,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (route.mode !== 'admin') return;
     void (async () => {
       try {
         const [sopRes, cfgRes] = await Promise.all([api.getSop(), api.getConfig()]);
@@ -67,10 +107,15 @@ export default function App() {
         setConfig(cfgRes);
         await refreshRecords();
       } catch (err) {
-        console.error('初始化加载失败，请确认 FastAPI 后端已启动：', err);
+        console.error('后台初始化加载失败，请确认 FastAPI 后端已启动：', err);
       }
     })();
-  }, [refreshRecords]);
+  }, [route.mode, refreshRecords]);
+
+  // 路径 `/` 或 `/chat` 渲染纯面向客户的独立前台页面
+  if (route.mode === 'customer') {
+    return <CustomerPortal onNavigateAdmin={() => navigate('/admin/chat')} />;
+  }
 
   const handleSend = async () => {
     const text = inputValue.trim();
@@ -102,6 +147,13 @@ export default function App() {
           onMeta: (meta) => {
             setActiveStage(meta.stage);
             setChecklist(meta.checklist);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {...m, stage: meta.stage, intent: meta.intent}
+                  : m,
+              ),
+            );
           },
           onToolCall: (trace) => {
             setMessages((prev) =>
@@ -109,6 +161,13 @@ export default function App() {
                 m.id === assistantId
                   ? {...m, tool_calls: [...(m.tool_calls ?? []), trace]}
                   : m,
+              ),
+            );
+          },
+          onDecisionTrace: (trace) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? {...m, decision_trace: trace} : m,
               ),
             );
           },
@@ -140,53 +199,110 @@ export default function App() {
     }
   };
 
+  const handleRateMessage = async (
+    msg: ChatMessage,
+    rating: 'up' | 'down',
+    tag = '',
+  ) => {
+    const idx = messages.findIndex((m) => m.id === msg.id);
+    const prevUser = idx > 0 ? messages[idx - 1] : null;
+    await api.submitFeedback({
+      session_id: sessionId,
+      message_id: msg.id,
+      rating,
+      tag,
+      user_query: prevUser?.content ?? '',
+      assistant_reply: msg.content,
+      stage: msg.stage ?? activeStage,
+      intent: msg.intent ?? '',
+      decision_trace: msg.decision_trace ?? {},
+    });
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? {...m, rated: rating} : m)),
+    );
+  };
+
+  // 路径 `/admin/*` 渲染商家管理后台，导航栏位于竖向右手边
   return (
-    <div className="cs-shell">
-      <header className="cs-topbar">
+    <div className="cs-admin-shell">
+      <div className="cs-admin-main">
+        {route.tab === 'chat' && (
+          <div className="cs-workspace">
+            <SopNavigator
+              sop={sop}
+              scripts={scripts}
+              activeStage={activeStage}
+              onStageChange={setActiveStage}
+              onQuickPrompt={(text) => setInputValue(text)}
+            />
+
+            <ChatWorkbench
+              messages={messages}
+              inputValue={inputValue}
+              onInputChange={setInputValue}
+              onSend={handleSend}
+              onRateMessage={(m, r, t) => void handleRateMessage(m, r, t)}
+              loading={loading}
+              orders={orders}
+              selectedOrderId={selectedOrderId}
+              onOrderChange={setSelectedOrderId}
+              activeStage={activeStage}
+              checklist={checklist}
+              providerLabel={config?.effective_provider ?? 'demo'}
+            />
+
+            <RecordsPanel
+              tickets={tickets}
+              invoices={invoices}
+              notifications={notifications}
+              onRefresh={() => void refreshRecords()}
+            />
+          </div>
+        )}
+
+        {route.tab === 'attribution' && <AttributionView />}
+        {route.tab === 'badcases' && <BadcaseView />}
+        {route.tab === 'benchmark' && <BenchmarkView />}
+      </div>
+
+      {/* 后台竖向右手边导航栏 */}
+      <nav className="cs-right-nav" aria-label="商家后台导航">
         <div>
-          <strong style={{fontSize: 16}}>AgentScope 2.0 智能客服系统</strong>
-          <span style={{marginLeft: 10, fontSize: 12, color: 'var(--cs-muted)'}}>
-            Python (FastAPI + AgentScope) · React 19 + Meta Astryx
-          </span>
+          <div className="cs-right-nav-brand">
+            <div style={{fontSize: 15, fontWeight: 700}}>MossAgent</div>
+            <div style={{fontSize: 11, color: 'var(--cs-muted)', marginTop: 4}}>
+              商家智能客服管理后台
+            </div>
+          </div>
+
+          <VStack gap={2}>
+            {ADMIN_NAV_ITEMS.map((item) => {
+              const active = route.tab === item.tab;
+              return (
+                <button
+                  key={item.tab}
+                  type="button"
+                  onClick={() => navigate(item.path)}
+                  className={`cs-nav-item ${active ? 'cs-nav-item-active' : ''}`}>
+                  <span>{item.title}</span>
+                  <span className="cs-nav-sub">{item.desc}</span>
+                </button>
+              );
+            })}
+          </VStack>
         </div>
-        <HStack gap={2}>
+
+        <VStack gap={2}>
           <Button
             label="模型与红线配置"
             onClick={() => setShowSettings(true)}
           />
-        </HStack>
-      </header>
-
-      <div className="cs-workspace">
-        <SopNavigator
-          sop={sop}
-          scripts={scripts}
-          activeStage={activeStage}
-          onStageChange={setActiveStage}
-          onQuickPrompt={(text) => setInputValue(text)}
-        />
-
-        <ChatWorkbench
-          messages={messages}
-          inputValue={inputValue}
-          onInputChange={setInputValue}
-          onSend={handleSend}
-          loading={loading}
-          orders={orders}
-          selectedOrderId={selectedOrderId}
-          onOrderChange={setSelectedOrderId}
-          activeStage={activeStage}
-          checklist={checklist}
-          providerLabel={config?.effective_provider ?? 'demo'}
-        />
-
-        <RecordsPanel
-          tickets={tickets}
-          invoices={invoices}
-          notifications={notifications}
-          onRefresh={() => void refreshRecords()}
-        />
-      </div>
+          <Button
+            label="打开客户前台 (/chat)"
+            onClick={() => navigate('/chat')}
+          />
+        </VStack>
+      </nav>
 
       {showSettings && config && (
         <ModelSettingsModal

@@ -4,7 +4,7 @@
  * （如 neutral / matcha / stone / butter / chocolate / gothic / y2k）。
  */
 import '@astryxdesign/theme-neutral/theme.css';
-import neutralTheme from '@astryxdesign/theme-neutral/built';
+import {neutralTheme} from '@astryxdesign/theme-neutral/built';
 
 export const themes = {
   neutral: neutralTheme,

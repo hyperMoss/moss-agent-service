@@ -1,9 +1,4 @@
-"""基于 AgentScope 2.0 的多阶段电商地垫智能客服编排引擎。
-
-支持两种运行模式：
-1. AgentScope 2.0 实机模式（DashScope / OpenAI）：使用 `agentscope.agent.Agent`、`Toolkit`、`reply_stream` 驱动真实大模型与工具调用。
-2. 内置 SOP 演示模式（Demo Mode）：未配置 API Key 或未安装外部模型依赖时，自动按完整 SOP 思维导图执行路由、工具调用并流式输出专业客服回复。
-"""
+"""基于 AgentScope 2.0 + 双本体决策护栏（Onto 架构融合）的多阶段智能客服引擎。"""
 
 from __future__ import annotations
 
@@ -15,6 +10,7 @@ from typing import Any
 
 from app.config import runtime_config
 from app.models import StageType
+from app.ontology.dual_ontology import verify_response_and_actions
 from app.sop.knowledge import HIGH_FREQ_SCRIPTS, SOP_TREE
 from app.sop.router import RouteResult, route_intent
 from app.store import CSStore, store as default_store
@@ -34,12 +30,15 @@ except ImportError:
 
 
 def build_system_prompt(stage: StageType, route: RouteResult, order_id: str | None) -> str:
-    """根据当前阶段与 SOP 节点动态构建 AgentScope 2.0 System Prompt。"""
     stage_meta = SOP_TREE[stage]
     sop_json = json.dumps(stage_meta, ensure_ascii=False, indent=2)
-    order_hint = f"\n当前会话已关联订单号：{order_id}，涉及订单状态、物流、改址、改品或售后登记时请主动调用工具查询或登记。" if order_id else ""
+    order_hint = (
+        f"\n当前会话已关联订单号：{order_id}，涉及订单状态、物流、改址、改品或售后登记时请主动调用工具查询或登记。"
+        if order_id
+        else ""
+    )
     return (
-        f"你是一名专业、温暖且严格遵守公司 SOP 的电商地垫智能客服专家。\n"
+        f"你是一名专业、温暖且严格遵守公司 SOP 与双本体动作边界的电商地垫智能客服专家。\n"
         f"当前识别阶段：【{stage_meta['title']}】，细分意图：【{route.intent}】。\n"
         f"请严格遵守以下 SOP 业务规范（严禁突破折扣红线，严禁编造订单状态）：\n{sop_json}\n"
         f"本次接待必检项：\n- " + "\n- ".join(route.checklist) + order_hint + "\n"
@@ -48,11 +47,10 @@ def build_system_prompt(stage: StageType, route: RouteResult, order_id: str | No
 
 
 class CustomerServiceOrchestrator:
-    """管理每个会话的 AgentScope 2.0 Agent 实例与流式推理。"""
+    """管理每个会话的 AgentScope 2.0 Agent 实例、双本体决策校验与流式推理。"""
 
     def __init__(self, db: CSStore | None = None) -> None:
         self.store = db or default_store
-        self._agents: dict[str, Any] = {}
 
     def _create_agentscope_agent(self, system_prompt: str) -> Any:
         provider = runtime_config.effective_provider()
@@ -96,7 +94,6 @@ class CustomerServiceOrchestrator:
         route: RouteResult,
         order_id: str | None,
     ) -> tuple[str, list[dict[str, Any]]]:
-        """内置 SOP 规则演示引擎：完整执行工具调用并返回合规回复。"""
         tools = {fn.__name__: fn for fn in build_cs_tools(self.store)}
         traces: list[dict[str, Any]] = []
 
@@ -105,7 +102,6 @@ class CustomerServiceOrchestrator:
             traces.append({"tool_name": name, "arguments": kwargs, "result": res})
             return res
 
-        # 1. 售前：定制报价与确认
         if route.stage == "presales" and route.intent == "custom_order":
             dims = re.findall(r"(\d{2,3})\s*[*xX×]\s*(\d{2,3})", message)
             length_cm, width_cm = (float(dims[0][0]), float(dims[0][1])) if dims else (150.0, 200.0)
@@ -126,13 +122,12 @@ class CustomerServiceOrchestrator:
                 if has_logo
                 else "卷材裁剪我们可以先手绘草图给您确认尺寸与方向。"
             )
+            logo_part = f" + LOGO 制版费 ¥{quote['logo_fee']}" if has_logo else ""
+            shape_part = f" + 异形裁剪费 ¥{quote['irregular_shape_fee']}" if is_irregular else ""
             reply = (
                 f"亲您好～为您核算了一下定制方案参考报价：\n"
                 f"- **推荐材质**：{quote['material']}（{quote['size_cm']}，面积 {quote['area_sqm']}㎡）\n"
-                f"- **预估总价**：¥{quote['total_price']}（含单价 ¥{quote['unit_price_per_sqm']}/㎡"
-                + (f" + LOGO 制版费 ¥{quote['logo_fee']}" if has_logo else "")
-                + (f" + 异形裁剪费 ¥{quote['irregular_shape_fee']}" if is_irregular else "")
-                + "）\n\n"
+                f"- **预估总价**：¥{quote['total_price']}（含单价 ¥{quote['unit_price_per_sqm']}/㎡{logo_part}{shape_part}）\n\n"
                 f"为了确保成品准确无误，下单前需要和您确认以下 3 点：\n"
                 f"1. **尺寸与方向**：请确认字体横版/竖版、条纹纹路方向及异形裁剪方向；{design_tip}\n"
                 f"2. **协商发货时间**：每一单定制发货周期为 **3-5 天**，需要您线上确认（未确认我们会电话联系核实，避免超时）；\n"
@@ -140,7 +135,6 @@ class CustomerServiceOrchestrator:
             )
             return reply, traces
 
-        # 2. 售前：页面尺寸 & 9.8折权限校验
         if route.stage == "presales":
             disc_match = re.search(r"(\d(?:\.\d)?)\s*折", message)
             if disc_match:
@@ -159,7 +153,6 @@ class CustomerServiceOrchestrator:
 
             return SOP_TREE["presales"]["welcome"] + "\n\n（温馨提示：页面现货尺寸目前最高可为您申请 **9.8 折** 专属优惠哦～）", traces
 
-        # 3. 售中：催发货 / 催物流 / 改地址 / 改产品 / 发票
         if route.stage == "insales":
             if route.intent == "invoice":
                 oid = order_id or "DD20261119001"
@@ -206,7 +199,6 @@ class CustomerServiceOrchestrator:
                 res = invoke("request_product_change", order_id=order_id, new_product_info=message)
                 return f"亲，关于订单 `{order_id}` 修改产品信息已核查：\n- {res.get('message') or res['notification']['summary']}", traces
 
-        # 4. 售后：品质（7折）/ 个人（8折）/ 物流（快递追责）+ 强制登记售后表
         oid = order_id or "DD20261114004"
         order_res = invoke("query_order", order_id=oid)
         order = order_res.get("order") or {}
@@ -247,7 +239,6 @@ class CustomerServiceOrchestrator:
                 f"为了尽量节省您的时间，您看是为您申请 **补偿留用**，还是安排 **免费换货 / 退货退款** 呢？"
             ), traces
 
-        # 个人问题（8折挽单 + 登记售后表）
         check = invoke("check_discount_authority", scenario="aftersales_personal", requested_discount=0.80)
         ticket = invoke(
             "register_after_sales_ticket",
@@ -273,7 +264,6 @@ class CustomerServiceOrchestrator:
         order_id: str | None = None,
         stage_hint: StageType | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        """流式处理客服对话，输出标准化 SSE 事件。"""
         resolved_order_id = self._extract_order_id(message, order_id)
         route = route_intent(message, stage_hint=stage_hint)
         provider = runtime_config.effective_provider()
@@ -323,7 +313,6 @@ class CustomerServiceOrchestrator:
                         tool_traces.append(tool_info)
                         yield {"event": "tool_call", "data": tool_info}
             except Exception as exc:  # noqa: BLE001
-                # 模型调用失败时平滑降级到 SOP 规则引擎，确保线上不中断
                 fallback_reply, fallback_traces = self._run_demo_sop_engine(
                     message, route, resolved_order_id
                 )
@@ -339,13 +328,31 @@ class CustomerServiceOrchestrator:
             tool_traces = demo_traces
             for trace in demo_traces:
                 yield {"event": "tool_call", "data": trace}
-            # 模拟自然流式输出，便于前端体验 SSE 逐字渲染
-            chunk_size = 18
+            chunk_size = 24
             for idx in range(0, len(demo_reply), chunk_size):
                 chunk = demo_reply[idx : idx + chunk_size]
                 full_reply += chunk
                 yield {"event": "delta", "data": {"text": chunk}}
-                await asyncio.sleep(0.015)
+                await asyncio.sleep(0.01)
+
+        # Onto 双本体动作边界与服务端确定性二次校验
+        order_obj = self.store.get_order(resolved_order_id) if resolved_order_id else None
+        verdict = verify_response_and_actions(route.stage, route.intent, full_reply, order=order_obj)
+        if not verdict.passed:
+            extra = verdict.sanitized_reply[len(full_reply) :]
+            full_reply = verdict.sanitized_reply
+            if extra:
+                yield {"event": "delta", "data": {"text": extra}}
+
+        decision_trace = {
+            "service_node_id": verdict.service_node_id,
+            "decision_rule_id": verdict.decision_rule_id,
+            "allowed_actions": verdict.allowed_actions,
+            "blocked_actions": verdict.blocked_actions,
+            "guardrail_passed": verdict.passed,
+            "violations": verdict.violations,
+        }
+        yield {"event": "decision_trace", "data": decision_trace}
 
         self.store.save_message(
             session_id=session_id,
@@ -363,6 +370,7 @@ class CustomerServiceOrchestrator:
                 "stage": route.stage,
                 "intent": route.intent,
                 "tool_calls": tool_traces,
+                "decision_trace": decision_trace,
             },
         }
 

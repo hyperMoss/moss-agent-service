@@ -24,30 +24,115 @@
     font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
 
-  .cs-shell {
+  /* ===== 商家后台整体布局：左侧主内容区 + 竖向右手边导航栏 ===== */
+  .cs-admin-shell {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--cs-bg);
+  }
+
+  .cs-admin-main {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    height: 100vh;
     overflow: hidden;
   }
 
-  .cs-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
+  .cs-right-nav {
+    width: 224px;
+    flex-shrink: 0;
     background: var(--cs-surface);
+    border-left: 1px solid var(--cs-border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px 14px;
+    overflow-y: auto;
+  }
+
+  .cs-right-nav-brand {
+    padding-bottom: 14px;
     border-bottom: 1px solid var(--cs-border);
+    margin-bottom: 14px;
+  }
+
+  .cs-nav-item {
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--cs-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .cs-nav-item:hover {
+    background: #f3f4f6;
+  }
+
+  .cs-nav-item-active {
+    background: var(--cs-primary-soft);
+    border-color: #bfdbfe;
+    color: var(--cs-primary);
+    font-weight: 600;
+  }
+
+  .cs-nav-sub {
+    font-size: 11px;
+    color: var(--cs-muted);
+    font-weight: 400;
   }
 
   .cs-workspace {
     display: grid;
-    grid-template-columns: 300px 1fr 360px;
+    grid-template-columns: 280px 1fr 330px;
     gap: 14px;
     padding: 14px;
     flex: 1;
     min-height: 0;
     overflow: hidden;
+  }
+
+  /* ===== 纯面向客户的独立前台页面（/ 或 /chat） ===== */
+  .cs-customer-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: linear-gradient(180deg, #f0f6ff 0%, #f6f7f9 36%);
+    padding: 20px 16px;
+  }
+
+  .cs-customer-card {
+    width: 100%;
+    max-width: 820px;
+    height: calc(100vh - 40px);
+    background: var(--cs-surface);
+    border: 1px solid var(--cs-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 36px rgba(15, 23, 42, 0.06);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .cs-customer-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--cs-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--cs-surface);
   }
 
   .cs-panel {
@@ -160,7 +245,7 @@
     background: #ffffff;
   }
 
-  @media (max-width: 1180px) {
+  @media (max-width: 1220px) {
     .cs-workspace {
       grid-template-columns: 1fr;
       overflow-y: auto;

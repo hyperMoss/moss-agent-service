@@ -1,50 +1,46 @@
-# 基于 AgentScope 2.0 + React (Astryx) 的全链路智能客服系统
+# AgentScope 2.0 × Onto 智能客服与经营归因系统（Python + React Astryx）
 
-本系统基于 [AgentScope 2.0](https://github.com/agentscope-ai/agentscope)（Python 后端）与 Meta 开源的 [Astryx Design System](https://github.com/meta/astryx)（React 19 + TypeScript 前端）构建，完整落地地垫电商 **售前 / 售中 / 售后** 全链路客服接待 SOP。
+本项目延续 [AgentScope 2.0](https://docs.agentscope.io/en/versions/2.0.11/quickstart)（Python/FastAPI）+ React 19 + [Meta Astryx](https://astryx.atmeta.com/docs/getting-started) 架构，深度融合核心架构特色、经营归因与原文溯源抽屉页面设计，并实现**客户前台与商家后台独立路径分离**。
 
-## 1. 系统架构与 SOP 映射
+## 1. 页面路径与布局规划
 
-- **后端（`backend/`）**：FastAPI + SQLite + [AgentScope 2.0 Quickstart API](https://docs.agentscope.io/en/versions/2.0.11/quickstart)（`Agent`、`Toolkit`、`DashScopeChatModel` / `OpenAIChatModel`、`reply_stream`）。
-  - **售前部分**：标准欢迎语、页面尺寸（内置 **9.8 折** 权限红线校验）、定制需求（材质面积报价、字体横竖版/条纹纹路/异形裁剪方向确认、LOGO 群效果图核对、强制协商 **3-5 天** 发货时间、备注工厂/仓库做货）。
-  - **售中部分**：催发货（页面常规通知仓库、有编号/定制通知工厂加急并提示防仓库漏开料）、催物流（丢件交接售后补发、物流停滞超 **48 小时** 交接售后核实）、修改地址（发货前直接改单、发货后发快递群并告知需到达原地址后转出）、修改产品信息（发货前改单通知仓库；发货后页面尺寸拦截补发、定制商品不支持修改）、线下开票登记发票表。
-  - **售后部分**：品质问题（挽单最低 **7 折**、强制登记售后表、区分工厂/仓库反馈工作群）、个人问题（色差/1-3cm误差/气味/厚度等，挽单最低 **8 折**、登记售后表）、物流问题（签收未收到/破损少件，挽单且赔偿由快递承担、登记售后表）、高频售后话术库。
-  - **开箱即用演示模式（Demo Mode）**：未填写 API Key 时自动启用内置 SOP 规则与工具演示引擎，完整体验 SSE 流式回复、工具调用轨迹与台账落库；配置 `DASHSCOPE_API_KEY` 或 `OPENAI_API_KEY` 后无缝切换至 AgentScope 2.0 真实模型推理。
-- **前端（`frontend/`）**：React 19 + Vite + TypeScript + [Astryx Design System](https://astryx.atmeta.com/docs/getting-started)（`@astryxdesign/core`、`@astryxdesign/theme-neutral`、`@stylexjs/stylex`、`@astryxdesign/cli`）。
-  - 三栏客服坐席工作台：左侧 **SOP 流程与高频话术一键引用**、中间 **SSE 流式对话与工具调用轨迹 + 必检清单**、右侧 **售后表 / 工作群流转 / 发票表实时台账**，顶部支持 **模型与折扣红线热配置**。
+| 访问路径 | 页面定位 | 核心特性 |
+| :--- | :--- | :--- |
+| `/` 或 `/chat` | **纯面向客户的独立前台**（`CustomerPortal.tsx`） | 极简买家对话体验、常见咨询快捷入口、订单号选填、图片/草图上传、满意度反馈（“未解决”自动静默流入后台 Badcase 队列），完全隐藏内部 SOP 与归因数据。 |
+| `/admin` 或 `/admin/chat` | **商家后台 · 智能坐席** | **竖向右手边导航栏**；左侧三栏坐席台（SOP 流程话术 + SSE 流式对话/双本体决策轨迹/点踩入队 + 售后/工作群/发票台账）。 |
+| `/admin/attribution` | **商家后台 · 经营归因与决策** | 对标 Onto 的只读双页签看板（售后问题分布 + 归因与决策）与右侧可下钻「原文与归因依据」抽屉。 |
+| `/admin/badcases` | **商家后台 · Badcase 自进化** | 集中展示客户前台与坐席点踩捕获的 Badcase 及 Decision Trace，支持人工修复与状态闭环。 |
+| `/admin/benchmark` | **商家后台 · 评测与数据集** | 一键运行 20 条全链路 SOP 回归评测集，并展示公开客服数据集目录。 |
 
-## 2. 快速启动
+## 2. 融合的 Onto 核心特色功能
 
-### 后端（Python 3.11+，推荐使用 `uv`）
+1. **双本体与动作边界二次校验（`backend/app/ontology/dual_ontology.py`）**：Service Ontology + Decision Ontology 定义允许/禁止动作边界，服务端拦截越权折扣与已发货定制改品承诺。
+2. **多模态线索提取（`backend/app/tools/multimodal.py`）**：解析破损/色差/效果图/快递面单线索并显式保留待确认项（`uncertainties`）。
+3. **点赞/点踩与 Badcase 自进化闭环**：前后台反馈统一归档至 SQLite `badcase_queue`（附完整 `DecisionTrace`）。
+4. **严格只读的经营归因引擎（`backend/app/analytics/attribution_engine.py`）**：程序确定性统计 + `DO-RC1~RC4` / `DO-OPS-*` 护栏 + 点击 `工单第{n}行` 下钻原文与订单快照。
+
+## 3. 测试数据集与一键回归评测
+
+- **内置评测集**：`backend/data/mat_cs_eval_dataset.jsonl`（20 条地垫全链路 SOP 样本）与 `backend/data/after_sales_snapshot.json`（12 条带根因标注的售后快照）。
+- **公开测试数据集（拉取脚本 `backend/scripts/download_dataset.py`）**：
+  - [dinesshxryu/sea-ecommerce-customer-support-sample](https://huggingface.co/datasets/dinesshxryu/sea-ecommerce-customer-support-sample)（1,000 条含中文多语言电商客服对话）
+  - [Alibaba-NLP/EcomBench](https://huggingface.co/datasets/Alibaba-NLP/EcomBench)（中文电商评测基准）
+
+## 4. 快速启动
 
 ```bash
+# 1. 启动 Python 后端
 cd backend
 cp .env.example .env
-# 按需在 .env 中填入 DASHSCOPE_API_KEY 或 OPENAI_API_KEY（留空则自动使用内置 SOP 演示模式）
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-uvicorn app.main:app --reload --port 8000
-```
-
-运行自动化测试：
-
-```bash
-cd backend
 pytest
-```
+uvicorn app.main:app --reload --port 8000
 
-### 前端（Node.js 22.13+，React 19 + Astryx）
-
-```bash
+# 2. 启动 React 19 + Astryx 前端
 cd frontend
 npm install
-# 可选：使用 Astryx CLI 查看组件或切换主题（如 matcha / stone / butter）
-npx @astryxdesign/cli theme list
 npm run dev
+# 客户前台：http://localhost:5173/chat
+# 商家后台：http://localhost:5173/admin/chat
 ```
-
-浏览器访问 `http://localhost:5173` 即可使用（Vite 已配置 `/api` 自动代理到 `http://127.0.0.1:8000`）。
-
-## 3. 轻量服务器（如 2核2G）部署建议
-
-- 后端依赖使用 `uv pip install` 仅安装核心包与云端 LLM API，不拉取本地重型向量/推理模型，常驻内存可控。
-- 生产环境建议在构建机执行 `npm run build` 生成静态产物后由 Nginx 托管，避免在 2c2g 机器上运行 `vite dev`；若需在 2c2g 机器上直接安装依赖，建议先配置 2GB Swap 防止 OOM。
