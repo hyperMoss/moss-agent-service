@@ -63,7 +63,7 @@ export function ModelSettingsModal({
         }}>
         <VStack gap={3}>
           <div style={{fontSize: 16, fontWeight: 700}}>
-            AgentScope 2.0 模型与红线热配置
+            MossAgent 模型与红线热配置
           </div>
 
           <div style={{fontSize: 12, color: 'var(--cs-muted)'}}>

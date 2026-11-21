@@ -41,7 +41,7 @@ export default function App() {
       role: 'assistant',
       stage: 'presales',
       content:
-        '您好！欢迎使用基于 AgentScope 2.0 + React Astryx 构建的地垫智能客服工作台。\n左侧可一键模拟售前/售中/售后典型场景，右侧实时同步售后登记表、发票登记表与工厂/仓库/快递工作群通知。',
+        '您好！欢迎使用 MossAgent 地垫智能客服工作台。\n左侧可一键模拟售前/售中/售后典型场景，右侧实时同步售后登记表、发票登记表与工厂/仓库/快递工作群通知。',
     },
   ]);
 
@@ -144,7 +144,7 @@ export default function App() {
     <div className="cs-shell">
       <header className="cs-topbar">
         <div>
-          <strong style={{fontSize: 16}}>AgentScope 2.0 智能客服系统</strong>
+          <strong style={{fontSize: 16}}>MossAgent</strong>
           <span style={{marginLeft: 10, fontSize: 12, color: 'var(--cs-muted)'}}>
             Python (FastAPI + AgentScope) · React 19 + Meta Astryx
           </span>

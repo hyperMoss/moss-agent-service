@@ -22,7 +22,7 @@ from app.sop.knowledge import HIGH_FREQ_SCRIPTS, SOP_TREE
 from app.store import store
 
 app = FastAPI(
-    title="AgentScope 2.0 智能客服系统",
+    title="MossAgent",
     version="1.0.0",
     description="基于 AgentScope 2.0 + FastAPI 的电商地垫全链路（售前/售中/售后）客服系统后端",
 )

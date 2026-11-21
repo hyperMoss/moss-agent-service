@@ -1,4 +1,4 @@
-# 基于 AgentScope 2.0 + React (Astryx) 的全链路智能客服系统
+# MossAgent
 
 本系统基于 [AgentScope 2.0](https://github.com/agentscope-ai/agentscope)（Python 后端）与 Meta 开源的 [Astryx Design System](https://github.com/meta/astryx)（React 19 + TypeScript 前端）构建，完整落地地垫电商 **售前 / 售中 / 售后** 全链路客服接待 SOP。
 

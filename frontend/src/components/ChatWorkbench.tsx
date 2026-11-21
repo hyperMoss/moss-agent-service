@@ -82,7 +82,7 @@ export function ChatWorkbench({
               className={`cs-bubble ${
                 msg.role === 'user' ? 'cs-bubble-user' : 'cs-bubble-assistant'
               }`}>
-              <div>{msg.content || (loading ? 'AgentScope 正在思考并调用工具...' : '')}</div>
+              <div>{msg.content || (loading ? 'MossAgent 正在思考并调用工具...' : '')}</div>
               {msg.tool_calls && msg.tool_calls.length > 0 && (
                 <VStack gap={1}>
                   {msg.tool_calls.map((tc, idx) => (
