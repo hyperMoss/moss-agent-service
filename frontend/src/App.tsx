@@ -2,6 +2,8 @@ import {useCallback, useEffect, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {VStack} from '@astryxdesign/core/VStack';
 import {api, streamChat} from './api/client';
+import {DemoTicketsView} from './components/DemoTicketsView';
+import {ServiceOntology} from './components/ServiceOntology';
 import {AttributionView} from './components/AttributionView';
 import {BadcaseView} from './components/BadcaseView';
 import {BenchmarkView} from './components/BenchmarkView';
@@ -22,10 +24,11 @@ import type {
   WorkGroupNotification,
 } from './types';
 
-type AdminTab = 'chat' | 'attribution' | 'badcases' | 'benchmark';
+type AdminTab = 'tickets' | 'chat' | 'attribution' | 'badcases' | 'benchmark';
 
 function parseRoute(pathname: string): {mode: 'customer' | 'admin'; tab: AdminTab} {
   if (pathname.startsWith('/admin')) {
+    if (pathname.startsWith('/admin/tickets')) return {mode: 'admin', tab: 'tickets'};
     if (pathname.startsWith('/admin/attribution')) return {mode: 'admin', tab: 'attribution'};
     if (pathname.startsWith('/admin/badcases')) return {mode: 'admin', tab: 'badcases'};
     if (pathname.startsWith('/admin/benchmark')) return {mode: 'admin', tab: 'benchmark'};
@@ -35,8 +38,9 @@ function parseRoute(pathname: string): {mode: 'customer' | 'admin'; tab: AdminTa
 }
 
 const ADMIN_NAV_ITEMS: Array<{tab: AdminTab; path: string; title: string; desc: string}> = [
+  {tab: 'tickets', path: '/admin/tickets', title: '演示工单', desc: '典型场景 · 对话本体 · 工具轨迹'},
   {tab: 'chat', path: '/admin/chat', title: '智能坐席', desc: 'SOP 引导 · 工具轨迹 · 台账'},
-  {tab: 'attribution', path: '/admin/attribution', title: '经营归因与决策', desc: '双页签看板 · 原文下钻抽屉'},
+  {tab: 'attribution', path: '/admin/attribution', title: '经营看板', desc: '双页签看板 · 原文下钻抽屉'},
   {tab: 'badcases', path: '/admin/badcases', title: 'Badcase 自进化', desc: '点踩捕获 · 复核修复闭环'},
   {tab: 'benchmark', path: '/admin/benchmark', title: '评测与数据集', desc: '20条SOP回归 · 公开数据集'},
 ];
@@ -251,15 +255,17 @@ export default function App() {
               providerLabel={config?.effective_provider ?? 'demo'}
             />
 
+            <section className="oc-workbench-rail"><ServiceOntology messages={messages} />
             <RecordsPanel
               tickets={tickets}
               invoices={invoices}
               notifications={notifications}
               onRefresh={() => void refreshRecords()}
-            />
+            /></section>
           </div>
         )}
 
+        {route.tab === 'tickets' && <DemoTicketsView />}
         {route.tab === 'attribution' && <AttributionView />}
         {route.tab === 'badcases' && <BadcaseView />}
         {route.tab === 'benchmark' && <BenchmarkView />}

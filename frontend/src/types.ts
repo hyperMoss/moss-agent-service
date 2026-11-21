@@ -221,3 +221,12 @@ export interface BenchmarkRunResult {
   catalog: DatasetCatalogItem[];
   cases: BenchmarkCaseResult[];
 }
+
+export interface DemoCase {
+  id: string;
+  title: string;
+  stage: StageType;
+  order_id: string;
+  question: string;
+  expected: string;
+}

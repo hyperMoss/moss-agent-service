@@ -98,6 +98,8 @@ export function ChatWorkbench({
           {messages.map((msg) => (
             <div
               key={msg.id}
+              id={msg.id}
+              tabIndex={-1}
               className={`cs-bubble ${
                 msg.role === 'user' ? 'cs-bubble-user' : 'cs-bubble-assistant'
               }`}>

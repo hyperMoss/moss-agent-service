@@ -15,6 +15,7 @@ from app.analytics.attribution_engine import (
     build_attribution_dashboard,
 )
 from app.config import runtime_config
+from app.demo import DEMO_CASES
 from app.eval.benchmark_runner import PUBLIC_DATASET_CATALOG, run_benchmark_suite
 from app.models import (
     AfterSalesTicketCreate,
@@ -53,6 +54,11 @@ def health() -> dict[str, Any]:
         "agentscope_installed": AGENTSCOPE_AVAILABLE,
         "effective_provider": runtime_config.effective_provider(),
     }
+
+
+@app.get("/api/demo/cases")
+def demo_cases() -> dict[str, Any]:
+    return {"cases": DEMO_CASES}
 
 
 @app.get("/api/sop")

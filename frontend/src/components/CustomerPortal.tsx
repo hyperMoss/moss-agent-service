@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {HStack} from '@astryxdesign/core/HStack';
+import {ServiceOntology} from './ServiceOntology';
 import {api, streamChat} from '../api/client';
 import type {ChatMessage} from '../types';
 
@@ -71,6 +72,9 @@ export function CustomerPortal({onNavigateAdmin}: CustomerPortalProps) {
                   : m,
               ),
             );
+          },
+          onToolCall: (trace) => {
+            setMessages(prev => prev.map(m => m.id === assistantId ? {...m, tool_calls: [...(m.tool_calls ?? []), trace]} : m));
           },
           onDecisionTrace: (trace) => {
             // 仅静默暂存于前端状态，供点踩满意度反馈时回传后台 Badcase 队列，不对客户展示
@@ -163,6 +167,8 @@ export function CustomerPortal({onNavigateAdmin}: CustomerPortalProps) {
             {messages.map((msg) => (
               <div
                 key={msg.id}
+                id={msg.id}
+                tabIndex={-1}
                 className={`cs-bubble ${
                   msg.role === 'user' ? 'cs-bubble-user' : 'cs-bubble-assistant'
                 }`}>
@@ -293,6 +299,7 @@ export function CustomerPortal({onNavigateAdmin}: CustomerPortalProps) {
           </div>
         </div>
       </div>
+      <ServiceOntology messages={messages} />
     </div>
   );
 }

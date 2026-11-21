@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {HStack} from '@astryxdesign/core/HStack';
+import {TabList, Tab} from '@astryxdesign/core/TabList';
 import {VStack} from '@astryxdesign/core/VStack';
 import {api} from '../api/client';
 import type {
@@ -21,6 +22,7 @@ export function AttributionView() {
   const [subTab, setSubTab] = useState<'overview' | 'attribution'>('overview');
   const [question, setQuestion] = useState('');
   const [qaHistory, setQaHistory] = useState<AttributionAnswer[]>([]);
+  const [error, setError] = useState('');
   const [asking, setAsking] = useState(false);
 
   // 右侧「原文与归因依据」下钻抽屉状态
@@ -29,8 +31,9 @@ export function AttributionView() {
   const [drawerTitle, setDrawerTitle] = useState<string>('');
 
   const loadBoard = async () => {
-    const data = await api.getAttributionDashboard();
-    setBoard(data);
+    setError('');
+    try { setBoard(await api.getAttributionDashboard()); }
+    catch { setError('看板加载失败，请确认后端服务后重试。'); }
   };
 
   useEffect(() => {
@@ -51,17 +54,19 @@ export function AttributionView() {
       const ans = await api.askAttribution(q);
       setQaHistory((prev) => [ans, ...prev]);
       setQuestion('');
-    } finally {
+    } catch { setError('归因问答失败，请稍后重试。'); } finally {
       setAsking(false);
     }
   };
 
   if (!board) {
-    return <div style={{padding: 24, color: 'var(--cs-muted)'}}>正在加载经营归因看板...</div>;
+    return <section className="oc-page"><p role="status">{error || '正在加载经营归因看板…'}</p>{error && <Button label="重试" onClick={() => void loadBoard()} />}</section>;
   }
 
   return (
-    <div style={{padding: 16, overflowY: 'auto', flex: 1}}>
+    <div className="oc-dashboard" style={{padding: 16, overflowY: 'auto', flex: 1}}>
+      <header className="oc-heading"><section><h1>经营看板</h1><p>全量工单快照 · 观察问题分布，追溯原文与归因依据</p></section></header>
+      {error && <p role="alert">{error}</p>}
       <VStack gap={3}>
         {/* 只读归因护栏声明条 */}
         <div
@@ -79,117 +84,38 @@ export function AttributionView() {
           }}>
           <div>
             <strong>只读归因引擎护栏：</strong>
-            {board.guardrail_notice}（当前样本：快照 {board.snapshot_count} 条 + 实时售后表 {board.live_count} 条 = 共 {board.total_tickets} 条）
+            {board.guardrail_notice}（快照 {board.snapshot_count} 条 + 实时 {board.live_count} 条，共 {board.total_tickets} 条）
           </div>
-          <Button label="刷新口径" onClick={() => void loadBoard()} />
+          <section style={{flexShrink: 0}}><Button label="刷新口径" onClick={() => void loadBoard()} /></section>
         </div>
 
-        {/* Onto 双页签切换 */}
-        <HStack gap={2}>
-          <Button
-            label={subTab === 'overview' ? '● 售后问题分布' : '售后问题分布'}
-            onClick={() => setSubTab('overview')}
-          />
-          <Button
-            label={subTab === 'attribution' ? '● 归因与决策' : '归因与决策'}
-            onClick={() => setSubTab('attribution')}
-          />
-        </HStack>
+        <TabList role="tablist" value={subTab} onChange={value => setSubTab(value as 'overview' | 'attribution')}>
+          <Tab value="overview" label="可视化看板" panelId="oc-overview" />
+          <Tab value="attribution" label="归因与决策" panelId="oc-attribution" />
+        </TabList>
 
         {subTab === 'overview' && (
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14}}>
-            {/* 产品问题工单排名 */}
-            <div className="cs-panel">
-              <div className="cs-panel-header">
-                <span>产品问题工单 · 排名（仅用于抽查）</span>
-              </div>
-              <div className="cs-panel-body">
-                <table className="cs-table">
-                  <thead>
-                    <tr>
-                      <th>产品型号 / SKU</th>
-                      <th>工单数</th>
-                      <th>原文溯源</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {board.sku_ranking.map((item) => (
-                      <tr key={item.sku_name}>
-                        <td>{item.sku_name}</td>
-                        <td><strong>{item.count}</strong></td>
-                        <td>
-                          <div style={{display: 'flex', gap: 4, flexWrap: 'wrap'}}>
-                            {item.row_numbers.map((rn) => (
-                              <button
-                                key={rn}
-                                type="button"
-                                onClick={() => openDrawer(`产品抽查 · ${item.sku_name}`, [rn])}
-                                style={{
-                                  fontSize: 11,
-                                  padding: '2px 6px',
-                                  borderRadius: 4,
-                                  border: '1px solid #93c5fd',
-                                  background: '#eff6ff',
-                                  color: '#1d4ed8',
-                                  cursor: 'pointer',
-                                }}>
-                                工单第{rn}行
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 明确问题码排名 */}
-            <div className="cs-panel">
-              <div className="cs-panel-header">
-                <span>明确问题码 · 排名（同工单同码计一次）</span>
-              </div>
-              <div className="cs-panel-body">
-                <table className="cs-table">
-                  <thead>
-                    <tr>
-                      <th>问题码</th>
-                      <th>命中数</th>
-                      <th>对应工单行</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {board.issue_code_ranking.map((item) => (
-                      <tr key={item.issue_code}>
-                        <td><code>{item.issue_code}</code></td>
-                        <td><strong>{item.count}</strong></td>
-                        <td>
-                          <div style={{display: 'flex', gap: 4, flexWrap: 'wrap'}}>
-                            {item.row_numbers.map((rn) => (
-                              <button
-                                key={rn}
-                                type="button"
-                                onClick={() => openDrawer(`问题码溯源 · ${item.issue_code}`, [rn])}
-                                style={{
-                                  fontSize: 11,
-                                  padding: '2px 6px',
-                                  borderRadius: 4,
-                                  border: '1px solid #cbd5e1',
-                                  background: '#f8fafc',
-                                  cursor: 'pointer',
-                                }}>
-                                工单第{rn}行
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <div id="oc-overview" role="tabpanel" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18}}>
+            <section className="oc-chart-card">
+              <h2>产品问题工单</h2><p>按工单数排序，点击查看对应原文</p>
+              {board.sku_ranking.map(item => <button className="oc-bar" type="button" key={item.sku_name} onClick={() => openDrawer(`产品抽查 · ${item.sku_name}`, item.row_numbers)}>
+                <strong>{item.sku_name}</strong><meter min={0} max={Math.max(...board.sku_ranking.map(r => r.count), 1)} value={item.count} aria-label={`${item.sku_name}工单数`} /><small>{item.count} 条 · 查看原文</small>
+              </button>)}
+              <p className="oc-chart-note">工单量仅用于抽查优先级，不代表故障率。</p>
+            </section>
+            <section className="oc-chart-card">
+              <h2>明确问题码</h2><p>同一工单的相同问题码只计一次</p>
+              {board.issue_code_ranking.map(item => <button className="oc-bar" type="button" key={item.issue_code} onClick={() => openDrawer(`问题码溯源 · ${item.issue_code}`, item.row_numbers)}>
+                <strong>{item.issue_code}</strong><meter min={0} max={Math.max(...board.issue_code_ranking.map(r => r.count), 1)} value={item.count} aria-label={`${item.issue_code}工单数`} /><small>{item.count} 条 · 查看原文</small>
+              </button>)}
+              <p className="oc-chart-note">每项统计均绑定本次快照与实时售后表中的工单行号。</p>
+            </section>
+            <section className="oc-chart-card" style={{gridColumn: '1 / -1'}}>
+              <h2>售后场景分布</h2>
+              {board.category_distribution.map(item => <button className="oc-bar" type="button" key={item.category} onClick={() => openDrawer(`售后场景 · ${item.category}`, Object.values(board.rows_by_number).filter(r => r.category === item.category).map(r => r.row_no))}>
+                <strong>{{quality:'品质问题',personal:'个人原因',logistics:'物流问题'}[item.category] ?? item.category}</strong><meter min={0} max={Math.max(board.total_tickets, 1)} value={item.count} /><small>{item.count} 条 · 查看原文</small>
+              </button>)}
+            </section>
 
             {/* 需要优先核查的情绪线索 */}
             <div className="cs-panel" style={{gridColumn: '1 / -1'}}>
@@ -238,7 +164,7 @@ export function AttributionView() {
         )}
 
         {subTab === 'attribution' && (
-          <div style={{display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 14}}>
+          <div id="oc-attribution" role="tabpanel" style={{display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 18}}>
             {/* 左侧：四大根因候选 + 运营核查规则卡片 */}
             <div className="cs-panel">
               <div className="cs-panel-header">
@@ -415,7 +341,7 @@ export function AttributionView() {
             top: 0,
             right: 0,
             bottom: 0,
-            width: 440,
+            width: 'min(440px, 100vw)',
             background: '#ffffff',
             borderLeft: '1px solid var(--cs-border)',
             boxShadow: '-12px 0 32px rgba(15, 23, 42, 0.14)',

@@ -1,4 +1,5 @@
 import type {
+  DemoCase,
   AfterSalesTicket,
   AttributionAnswer,
   AttributionDashboard,
@@ -30,6 +31,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getDemoCases: () => requestJson<{cases: DemoCase[]}>('/demo/cases'),
   getSop: () => requestJson<{sop: SopTree; scripts: ScriptItem[]}>('/sop'),
   getOrders: () => requestJson<{orders: OrderItem[]}>('/orders'),
   getTickets: () => requestJson<{tickets: AfterSalesTicket[]}>('/tickets'),

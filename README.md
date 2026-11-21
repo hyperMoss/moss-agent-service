@@ -44,3 +44,13 @@ npm run dev
 # 客户前台：http://localhost:5173/chat
 # 商家后台：http://localhost:5173/admin/chat
 ```
+
+### OntoCare 风格演示与看板
+
+- `/admin/tickets`：独立演示工单页，支持搜索、选择场景、运行、追问和重置会话。六个场景使用当前地垫业务订单和真实客服接口，预期流程与实际执行结果分开展示。运行售后和履约场景会登记售后表或工作群通知；重置只清空当前演示会话，不撤销登记。
+- `/admin/attribution`：经营看板，展示产品与问题码的彩色分布、归因规则及只读问答；点击工单行号查看原文证据。工单数不代表故障率。
+- 演示页、智能坐席和客户前台均提供 `Service Ontology` 对话本体。订单、产品节点来自工具实际查询结果，知识与规则节点来自实际决策轨迹；连线表示同轮参与，点击节点可定位关联提问。节点不表示业务资格已核验。
+
+界面参考本机 OntoCare 的 `static/analytics.html`、`static/conversation-graph.js` 和 `static/judge-demo.css`，业务内容使用本项目的地垫 SOP，不依赖参考项目运行。
+
+需要隔离演示登记时，可在启动后端前设置 `DB_PATH=/tmp/moss-demo.db MODEL_PROVIDER=demo`。
