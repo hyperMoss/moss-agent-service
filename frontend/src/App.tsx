@@ -71,6 +71,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<WorkGroupNotification[]>([]);
   const [config, setConfig] = useState<RuntimeConfigData | null>(null);
 
+  const [runtimeProvider, setRuntimeProvider] = useState('');
   const [activeStage, setActiveStage] = useState<StageType>('presales');
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [inputValue, setInputValue] = useState<string>('');
@@ -149,6 +150,7 @@ export default function App() {
         },
         {
           onMeta: (meta) => {
+            setRuntimeProvider(meta.provider);
             setActiveStage(meta.stage);
             setChecklist(meta.checklist);
             setMessages((prev) =>
@@ -252,7 +254,7 @@ export default function App() {
               onOrderChange={setSelectedOrderId}
               activeStage={activeStage}
               checklist={checklist}
-              providerLabel={config?.effective_provider ?? 'demo'}
+              providerLabel={runtimeProvider || config?.effective_provider || 'demo'}
             />
 
             <section className="oc-workbench-rail"><ServiceOntology messages={messages} />

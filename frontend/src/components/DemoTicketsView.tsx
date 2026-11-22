@@ -12,13 +12,14 @@ export function DemoTicketsView() {
   const [error, setError] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [runtimeProvider, setRuntimeProvider] = useState('');
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(() => `demo-${crypto.randomUUID()}`);
   const active = cases.find(c => c.id === selected);
   const load = () => {setError(''); api.getDemoCases().then(r => {setCases(r.cases);}).catch(() => setError('演示工单加载失败，请确认后端服务后重试。'));};
   useEffect(load, []);
   const choose = (item: DemoCase) => {
-    setSelected(item.id); setMessages([]); setInput(item.question); setError('');
+    setSelected(item.id); setMessages([]); setRuntimeProvider(''); setInput(item.question); setError('');
     setSession(`demo-${crypto.randomUUID()}`);
   };
   const send = async () => {
@@ -29,7 +30,7 @@ export function DemoTicketsView() {
     const update = (fn: (m: ChatMessage) => ChatMessage) => setMessages(prev => prev.map(m => m.id === id ? fn(m) : m));
     try {
       await streamChat({session_id: session, message: text, order_id: active.order_id, stage_hint: null}, {
-        onMeta: meta => update(m => ({...m, stage: meta.stage, intent: meta.intent})),
+        onMeta: meta => {setRuntimeProvider(meta.provider); update(m => ({...m, stage: meta.stage, intent: meta.intent}));},
         onToolCall: trace => update(m => ({...m, tool_calls: [...(m.tool_calls ?? []), trace]})),
         onDecisionTrace: trace => update(m => ({...m, decision_trace: trace})),
         onDelta: delta => update(m => ({...m, content: m.content + delta})),
@@ -48,7 +49,7 @@ export function DemoTicketsView() {
         {cases.length > 0 && !cases.some(c => `${c.title} ${c.order_id} ${c.question}`.includes(filter)) && <p>没有匹配的工单，请调整搜索词。</p>}
       </aside>
       <section className="oc-demo-chat">
-        {active ? <><header><h2>{active.title}</h2><p>{active.order_id} · {STAGES[active.stage]}场景</p><details><summary>查看预期流程</summary>{active.expected}<p>实际结果以本次运行轨迹为准。</p></details></header>
+        {active ? <><header><h2>{active.title}</h2><p>{active.order_id} · {STAGES[active.stage]}场景{runtimeProvider && ` · 本次引擎：${runtimeProvider}`}</p><details><summary>查看预期流程</summary>{active.expected}<p>实际结果以本次运行轨迹为准。</p></details></header>
           <section className="oc-demo-messages" aria-live="polite">{messages.length === 0 && <p className="oc-empty">问题已填入下方，点击「运行演示」开始。</p>}
             {messages.map(m => <article id={m.id} tabIndex={-1} key={m.id} className={`cs-bubble cs-bubble-${m.role}`}>
               {m.content || '正在处理…'}

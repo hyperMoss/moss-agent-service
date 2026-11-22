@@ -54,3 +54,7 @@ npm run dev
 界面参考本机 OntoCare 的 `static/analytics.html`、`static/conversation-graph.js` 和 `static/judge-demo.css`，业务内容使用本项目的地垫 SOP，不依赖参考项目运行。
 
 需要隔离演示登记时，可在启动后端前设置 `DB_PATH=/tmp/moss-demo.db MODEL_PROVIDER=demo`。
+
+### 商品与订单意图护栏
+
+普通与流式客服接口共用服务范围检查，先检查范围再调用模型或业务工具。数学题、生活问题、夹带无关任务或要求忽略规则的消息返回固定范围提示，记录 `out_of_scope` 意图与 `DO-SERVICE-SCOPE` 拦截轨迹；订单号和手动阶段不能绕过检查。未能确认业务意图时也会请用户改为商品或订单问题。商品规格、面积和报价计算可正常处理；有业务上下文时支持短规格及简短追问。

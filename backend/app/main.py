@@ -96,7 +96,7 @@ async def chat_once(req: ChatRequest) -> ChatResponse:
         stage=final_data.get("stage", meta.get("stage", "presales")),
         intent=final_data.get("intent", meta.get("intent", "")),
         reply=final_data.get("reply", ""),
-        provider=meta.get("provider", runtime_config.effective_provider()),
+        provider=final_data.get("provider", meta.get("provider", runtime_config.effective_provider())),
         tool_calls=final_data.get("tool_calls", []),
         checklist=meta.get("checklist", []),
         suggested_scripts=meta.get("suggested_scripts", []),
